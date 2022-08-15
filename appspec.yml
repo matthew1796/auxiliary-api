@@ -1,8 +1,8 @@
 version: 0.0
 os: linux
-files:
-- source : /
-    destination : /opt/auxiliary_api/
+  - source: /
+      destination: /opt/auxiliary_api/
+
 #hooks:
 #  BeforeInstall:
 #    - location: scripts/install_dependencies

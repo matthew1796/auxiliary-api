@@ -1,0 +1,6 @@
+{
+  "host" : "ml-resulting.cmvgulcclrnd.us-west-2.rds.amazonaws.com",
+  "user" : "malonso",
+  "password" : "yAfhcjtg",
+  "port" : "3306"
+}

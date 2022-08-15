@@ -1,0 +1,2 @@
+2022-05-09T01:50:12.394,CRITICAL,Thread-12,1164,WooCommerce/__init__.py:parse_order,256,Exception occurred while parsing order: '_ywbc_barcode_value'
+2022-05-09T02:09:17.978,WARNING,Thread-20,10396,WooCommerce/__init__.py:parse_order,57,Exception encountered parsing ordered test name/price: list index out of range

@@ -1,0 +1,21 @@
+{
+  "production": {
+    "00": {
+      "url": "https://wcapi.covidclinic.org/",
+      "key": "ck_2687fd49bec3c4558b061516441ecaa6c6db9d2d",
+      "secret": "cs_28031a86959f21c6f9c33f4f562cb7abf15e3638"
+    },
+    "02": {
+      "url": "https://mobile.covidclinic.org/",
+      "key": "ck_6fc1ee58dea2452dbcef5074d2b8ab566c876ca0",
+      "secret": "cs_410971cc432cfea1cee2eb08e8522204f54cc76b"
+    }
+  },
+  "archive": {
+    "00": {
+      "url": "https://archive.covidclinic.org/",
+      "key": "ck_0ecfaa9066366884d6ed0e12313823307ffc4731",
+      "secret": "cs_5a45da244292d4c353c08f464713bd61020046c9"
+    }
+  }
+}

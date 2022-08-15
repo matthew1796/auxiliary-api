@@ -1,0 +1,14 @@
+{
+  "webhook_db": {
+    "host": "35.161.54.190",
+    "port": "27017",
+    "username": "root",
+    "password": "tukVaw-pemdi0-jyhbob"
+  },
+  "master": {
+    "host": "35.161.54.190",
+    "port": "27017",
+    "username": "master",
+    "password": "Friday123"
+  }
+}

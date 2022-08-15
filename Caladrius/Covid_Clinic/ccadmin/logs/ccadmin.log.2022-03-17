@@ -1,0 +1,8 @@
+2022-03-17T21:28:48.321,WARNING,Thread-16,26528,ccadmin/__init__.py:parse_order,134,Exception encountered parsing collection timestamp info: String does not contain a date:
+2022-03-17T21:44:15.607,WARNING,Thread-20,21888,ccadmin/__init__.py:parse_order,134,Exception encountered parsing collection timestamp info: String does not contain a date:
+2022-03-17T21:44:32.773,WARNING,Thread-10,1536,ccadmin/__init__.py:parse_order,134,Exception encountered parsing collection timestamp info: String does not contain a date:
+2022-03-17T21:44:34.311,WARNING,Thread-16,26528,ccadmin/__init__.py:parse_order,134,Exception encountered parsing collection timestamp info: String does not contain a date:
+2022-03-17T22:25:01.100,WARNING,Thread-24,14056,ccadmin/__init__.py:parse_order,134,Exception encountered parsing collection timestamp info: String does not contain a date:
+2022-03-17T22:25:42.928,WARNING,Thread-16,26528,ccadmin/__init__.py:parse_order,134,Exception encountered parsing collection timestamp info: String does not contain a date:
+2022-03-17T22:40:32.620,WARNING,Thread-6,22288,ccadmin/__init__.py:parse_order,134,Exception encountered parsing collection timestamp info: String does not contain a date:
+2022-03-17T22:41:47.419,WARNING,Thread-8,17464,ccadmin/__init__.py:parse_order,134,Exception encountered parsing collection timestamp info: String does not contain a date:

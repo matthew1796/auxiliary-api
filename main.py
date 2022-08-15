@@ -17,8 +17,8 @@ class TestMRNsRequest(BaseModel):
 
 app = FastAPI()
 
-date = datetime.now().strftime("%d-%m-%Y %H-%M-%S").replace(' ', '')
-output_file = './fake_data/__output' + date + '.csv'
+date = datetime.now().strftime("%d-%m-%Y")
+output_file = './fake_data/test_mrns_' + date + '.csv'
 
 
 @app.get("/")
@@ -26,14 +26,14 @@ async def root():
     return {"message" : "Hello World"}
 
 @app.post("/generate_test_mrns")
-async def main(request : TestMRNsRequest):
+async def generate_test_mrns(request : TestMRNsRequest):
     num_mrns = str(request.num_mrns)
     panelID = str(request.panelID)
 
-    elis_agent = ELISAgent.ELISAgent()
+    elis_agent = ELISAgent()
     token = elis_agent.login();
 
-    mockaroo_agent = MockarooAgent.MockarooAgent()
+    mockaroo_agent = MockarooAgent()
     mockaroo_agent.generate_fake_data(num_mrns)
     json_objs = mrn_generator.generate_json_objs(token, panelID)
     for post_body in json_objs:

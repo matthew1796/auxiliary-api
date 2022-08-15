@@ -1,0 +1,24 @@
+2022-02-28T23:11:43.575,WARNING,MainThread,2416,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4638925
+2022-02-28T23:11:45.231,WARNING,MainThread,2416,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4611916
+2022-02-28T23:12:37.311,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4638440
+2022-02-28T23:12:38.936,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4638851
+2022-02-28T23:12:42.233,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4638680
+2022-02-28T23:12:43.920,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4637080
+2022-02-28T23:12:45.592,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4637585
+2022-02-28T23:12:47.233,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4547338
+2022-02-28T23:12:48.905,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4610708
+2022-02-28T23:12:53.873,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4631008
+2022-02-28T23:12:57.217,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4631464
+2022-02-28T23:12:58.858,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4636956
+2022-02-28T23:13:00.499,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4615163
+2022-02-28T23:13:02.155,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4623797
+2022-02-28T23:13:03.874,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4635496
+2022-02-28T23:13:05.499,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4553336
+2022-02-28T23:13:07.577,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,201,Exception encountered parsing passport country info: 'travel'
+2022-02-28T23:13:07.577,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 02-1224939
+2022-02-28T23:13:09.233,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4637230
+2022-02-28T23:13:17.561,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4612459
+2022-02-28T23:13:19.202,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4528837
+2022-02-28T23:13:20.843,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4615819
+2022-02-28T23:13:22.530,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4638549
+2022-02-28T23:13:24.155,WARNING,MainThread,8180,WooCommerce/__init__.py:parse_order,229,Exception encountered parsing collection datetime info: Collection date not found for 00-4625416

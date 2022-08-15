@@ -27,24 +27,23 @@ async def root():
 
 @app.post("/generate_test_mrns")
 async def generate_test_mrns(request : TestMRNsRequest):
-    # num_mrns = str(request.num_mrns)
-    # panelID = str(request.panelID)
-    #
-    # elis_agent = ELISAgent()
-    # token = elis_agent.login();
-    #
-    # mockaroo_agent = MockarooAgent()
-    # mockaroo_agent.generate_fake_data(num_mrns)
-    # json_objs = mrn_generator.generate_json_objs(token, panelID)
-    # for post_body in json_objs:
-    #     orderInfo = elis_agent.create_order(post_body)
-    #     print(orderInfo)
-    #     #open(output_file, 'w+').close();
-    #     with open(output_file, 'a') as out:
-    #         csv_out = csv.writer(out)
-    #         csv_out.writerow(orderInfo)
-    # return FileResponse(output_file)
-    return {"message" : "success"}
+    num_mrns = str(request.num_mrns)
+    panelID = str(request.panelID)
+
+    elis_agent = ELISAgent()
+    token = elis_agent.login();
+
+    mockaroo_agent = MockarooAgent()
+    mockaroo_agent.generate_fake_data(num_mrns)
+    json_objs = mrn_generator.generate_json_objs(token, panelID)
+    for post_body in json_objs:
+        orderInfo = elis_agent.create_order(post_body)
+        print(orderInfo)
+        #open(output_file, 'w+').close();
+        with open(output_file, 'a') as out:
+            csv_out = csv.writer(out)
+            csv_out.writerow(orderInfo)
+    return FileResponse(output_file)
 
 
 

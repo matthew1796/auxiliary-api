@@ -40,7 +40,7 @@ async def generate_test_mrns(request : TestMRNsRequest):
         orderInfo = elis_agent.create_order(post_body)
         print(orderInfo)
         #open(output_file, 'w+').close();
-        with open(output_file, 'a') as out:
+        with open(output_file, 'a+') as out:
             csv_out = csv.writer(out)
             csv_out.writerow(orderInfo)
     return FileResponse(output_file)

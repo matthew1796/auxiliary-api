@@ -8,7 +8,7 @@ class SQLAgent():
     def __init__(self):
         f = open(credentials_path)
         self.creds = json.load(f);
-        f.close();
+        f.close()
 
     def create_connection(self, db):
         self.connection = None
@@ -20,10 +20,11 @@ class SQLAgent():
                 database = db
             )
             print("Connection to " + self.creds["host"] + " successfull.")
+            return self.connection
+
         except Error as e:
             print("Error: " + e)
 
-        return self.connection
 
     def close(self):
         print("Closing " + self.creds["host"] + " connection")

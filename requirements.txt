@@ -90,7 +90,6 @@ setproctitle==1.1.10
 simplejson==3.16.0
 six==1.14.0
 sniffio==1.2.0
-sos==4.2
 Sphinx==1.8.5
 SQLAlchemy==1.4.40
 ssh-import-id==5.10

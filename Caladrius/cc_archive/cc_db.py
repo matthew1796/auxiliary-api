@@ -304,7 +304,8 @@ def get_cc_order(mrns: str , ax_dts: datetime  = None,
                         traceback.print_exc()
             elif source_of_truth == 'woocommerce':
                 if stage == 'archive':
-                    logger.debug('WooCommerce archive parser not implemented...')
+                    #logger.debug('WooCommerce archive parser not implemented...')
+                    order = WooCommerce.parse_archive_order(retrieved_doc['raw_body'])
                 else:
                     try:
                         order = WooCommerce.parse_order(retrieved_doc['raw_body'])

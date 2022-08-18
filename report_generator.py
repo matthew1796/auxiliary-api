@@ -2,20 +2,36 @@ from SQL import SQLAgent
 from Sparrow import SparrowAgent
 from MongoDB import MongoAgent
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import Caladrius.cc_archive.cc_db as caladrius
 import json
 import pymongo
+import os
 
-report_path = 'reports/oregon_expedited_orders_with_cxt.csv'
+report_path = 'reports/oregon_late_expedited_orders(ALL).csv'
 
-def get_orders():
+
+
+#---------------------------------------Functions---------------------------------------#
+
+def get_mongo_orders(db, collection, query):
+    mongo_agent = MongoAgent()
+    mongo_client = mongo_agent.create_connection()
+    cc_orders = mongo_client[db][collection]
+    mongo_cursor = cc_orders.find(query)
+    df = pd.DataFrame(list(mongo_cursor))
+    mongo_agent.close()
+    return df
+
+
+def get_sql_orders(db, query):
     sql_agent = SQLAgent()
-    connection = sql_agent.create_connection('_sparrow_')
+    connection = sql_agent.create_connection(db)
     cursor = connection.cursor(dictionary=True)
-    cursor.execute('CALL get_oregon_expedited_orders()')
+    cursor.execute(query)
     df = pd.DataFrame(cursor)
     df = df.drop_duplicates(subset='MRN')
+    sql_agent.close()
     return df
 
 
@@ -23,8 +39,17 @@ def get_collection_times(df):
      for index, row in df.iterrows():
          retrieved_order = caladrius.get_cc_order(row['MRN'])
          collection_time = retrieved_order.__dict__['specimen'].__dict__['collection_datetime']
-         df.loc[index, 'Date of Collection'] = collection_time
-         return df
+         df.loc[index, 'Date of Collection'] = collection_time.replace(tzinfo=None)
+
+def get_legacy_result_times(sql_db, df):
+    sql_agent = SQLAgent()
+    connection = sql_agent.create_connection(sql_db)
+    for idx, row in df.iterrows():
+        cursor = connection.cursor(dictionary=True,buffered=True)
+        cursor.execute('SELECT * FROM resulting.legacy_results WHERE mrn = %s', (row['MRN'],))
+        order = cursor.fetchone()
+        df.loc[idx, 'Date of Result'] = order['result_timestamp']
+    sql_agent.close()
 
 def contains_sunday(start : datetime, end: datetime):
     num_weeks, remainder = divmod( (end-start).days, 7)
@@ -33,56 +58,124 @@ def contains_sunday(start : datetime, end: datetime):
     else:
        return num_weeks
 
-def is_late(start : datetime, end : datetime):
-    elapsed_time = end - start
-    time_limit = 3600*48 # 48 hours
-    if contains_sunday:
-        time_limit += 3600*24
+def time_until_end_of_day(dt=None):
+    if dt is None:
+        dt = datetime.datetime.now()
+    return ((24 - dt.hour - 1) * 60 * 60) + ((60 - dt.minute - 1) * 60) + (60 - dt.second)
 
-    if elapsed_time.total_seconds() >= time_limit:
+def is_late(start : datetime, end : datetime):
+
+    start = start.replace(tzinfo=None)
+    end = end.replace(tzinfo=None)
+
+
+    deadline = start + timedelta(days=2)
+
+    if contains_sunday(start, end):
+        deadline += timedelta(days=1) #sundays dont count
+
+
+    deadline += timedelta(seconds=time_until_end_of_day(deadline)) # have until midnight of the second day
+
+
+
+    if end >= deadline:
         return True
     else:
         return False
 
-mongo_agent = MongoAgent()
-mongo_client = mongo_agent.create_connection()
-cc_orders = mongo_client["covidclinic"]["orders"]
+def record_mongo_orders():
+    test_names = ['Expedited RT-PCR COVID-19 Test - 1-2 Day Result', '*COVID-19 Test - MedLab2020 Expedited PCR Test 1-2 Day Results']
 
-cursor = cc_orders.find()
-
+    for test in test_names:
 
 
-df = pd.DataFrame(list(cursor))
+        mongo_query = {
+            "raw_body.billing.state": "OR",
+            "raw_body.line_items" : {
+                "$elemMatch" : {
+                    "name" : test
+                }
+            }
+        }
+
+        oregon_exp_orders = get_mongo_orders("covidclinic", "orders", mongo_query)
+
+        col_names = ["MRN", "Patient First Name", "Patient Last Name", "Test", "Date of Collection", "Date of Result"]
+        report_df = pd.DataFrame(columns=col_names)
+
+        for idx, row in oregon_exp_orders.iterrows():
+            report_df.loc[idx, 'MRN'] = row['mrn']
+            report_df.loc[idx, 'Patient First Name'] = row['raw_body']['billing']['first_name']
+            report_df.loc[idx, 'Patient Last Name'] = row['raw_body']['billing']['last_name']
+            report_df.loc[idx, 'Test'] = test
+
+        get_collection_times(report_df)
+        get_legacy_result_times('resulting', report_df)
+
+
+        for idx, order in report_df.iterrows():
+                if is_late(order['Date of Collection'], order['Date of Result']) == False:
+                    report_df.drop(idx, inplace=True)
+
+        report_df.to_csv(report_path, mode='a', header=not os.path.exists(report_path))
+
+def record_sql_orders():
+    oregon_exp_orders = get_sql_orders('_sparrow_', 'CALL get_oregon_expedited_orders()')
+    col_names = ["MRN", "Patient First Name", "Patient Last Name", "Test", "Date of Collection", "Date of Result"]
+    report_df = pd.DataFrame(columns=col_names)
+
+    for idx, row in oregon_exp_orders.iterrows():
+        report_df.loc[idx, 'MRN'] = row['MRN']
+        report_df.loc[idx, 'Patient First Name'] = row['First Name']
+        report_df.loc[idx, 'Patient Last Name'] = row['Last Name']
+        report_df.loc[idx, 'Test'] = row['Test Type']
+        report_df.loc[idx, 'Date of Result'] = row['Date of Result']
+
+    get_collection_times(report_df)
 
 
 
-for index, order in df.iterrows():
-    contains_expedited_test = False
-    for test in order["raw_body"]["line_items"]:
-        if test['name'] == "*COVID-19 Test - MedLab2020 Expedited PCR Test 1-2 Day Results":
-            contains_expedited_test = True
-            break
-    if contains_expedited_test == False:
-        df.drop(index, inplace=True)
-df.to_csv(report_path)
+    for idx, order in report_df.iterrows():
+            if is_late(order['Date of Collection'], order['Date of Result']) == False:
+                report_df.drop(idx, inplace=True)
 
-mongo_agent.close()
+    report_df.to_csv(report_path, mode='a', header=not os.path.exists(report_path))
 
-# OR_exp_df = pd.read_csv(report_path)
-#
-# for idx, row in OR_exp_df.iterrows():
-#     cx_date = row['Date of Collection'][0:19]
-#     cx_date = datetime.strptime(cx_date, "%m/%d/%Y %H:%M")
-#     rx_date = row['Date of Result']
-#     rx_date = datetime.strptime(rx_date, "%m/%d/%Y %H:%M")
-#     if rx_date < cx_date:
-#         OR_exp_df.drop(idx, inplace=True)
-#     if is_late(cx_date, rx_date) == False:
-#         OR_exp_df.drop(idx, inplace=True)
-#
-#
-#
-#
-#
-#
-# OR_exp_df.to_csv('reports/oregon_expedited_orders_with_cxt.csv')
+
+#---------------------------------------Main---------------------------------------#
+if __name__ == "__main__":
+    record_mongo_orders()
+    record_sql_orders()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#--------------------------------------------------------------

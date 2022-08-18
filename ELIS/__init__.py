@@ -30,10 +30,24 @@ class ELISAgent ():
         return json.loads(response.text)['token'];
 
     def create_order(self, post_body):
-        print('in create order')
         api_endpoint = self.creds['base'] + self.create_order_path
-        response = requests.post(api_endpoint, json=post_body)
-        print(response.text)
+
+        try:
+            response = requests.post(api_endpoint, json=post_body)
+            #response = requests.post("https://google.com", json=post_body)
+            response.raise_for_status()
+        except requests.HTTPError as e:
+            print('Error:', e)
+            return None
+        except requests.exceptions.RequestException as e:
+            print("Connection refused: ", e)
+            return None
+        except Exception as e:
+            print('Internal server error', e)
+            return None
+
+
+
         specimenId = post_body['specimenId']
         orderID = json.loads(response.text)['oid']
 

@@ -7,6 +7,8 @@ import Caladrius.cc_archive.cc_db as caladrius
 import json
 import pymongo
 import os
+from pytz import timezone
+import pytz
 
 report_path = 'reports/oregon_late_expedited_orders(ALL).csv'
 
@@ -14,11 +16,11 @@ report_path = 'reports/oregon_late_expedited_orders(ALL).csv'
 
 #---------------------------------------Functions---------------------------------------#
 
-def get_mongo_orders(db, collection, query):
+def get_mongo_orders(db, collection, query, projection=None):
     mongo_agent = MongoAgent()
     mongo_client = mongo_agent.create_connection()
     cc_orders = mongo_client[db][collection]
-    mongo_cursor = cc_orders.find(query)
+    mongo_cursor = cc_orders.find(query, projection)
     df = pd.DataFrame(list(mongo_cursor))
     mongo_agent.close()
     return df
@@ -39,7 +41,7 @@ def get_collection_times(df):
      for index, row in df.iterrows():
          retrieved_order = caladrius.get_cc_order(row['MRN'])
          collection_time = retrieved_order.__dict__['specimen'].__dict__['collection_datetime']
-         df.loc[index, 'Date of Collection'] = collection_time.replace(tzinfo=None)
+         df.loc[index, 'Date of Collection'] = collection_time.astimezone(timezone('US/Pacific'))
 
 def get_legacy_result_times(sql_db, df):
     sql_agent = SQLAgent()
@@ -48,7 +50,9 @@ def get_legacy_result_times(sql_db, df):
         cursor = connection.cursor(dictionary=True,buffered=True)
         cursor.execute('SELECT * FROM resulting.legacy_results WHERE mrn = %s', (row['MRN'],))
         order = cursor.fetchone()
-        df.loc[idx, 'Date of Result'] = order['result_timestamp']
+        result_timestamp = order['result_timestamp']
+        result_timestamp = pytz.utc.localize(result_timestamp)
+        df.loc[idx, 'Date of Result'] = result_timestamp.astimezone(timezone('US/Pacific'))
     sql_agent.close()
 
 def contains_sunday(start : datetime, end: datetime):
@@ -83,6 +87,29 @@ def is_late(start : datetime, end : datetime):
         return True
     else:
         return False
+
+
+def record_mongo_orders_by_price(price: int):
+    mongo_query = {
+        "raw_body.billing.state": "OR",
+        "raw_body.line_items" : {
+            "$elemMatch" : {
+                "price" : price
+            }
+        }
+    }
+
+    mongo_projection = {
+        "raw_body.line_items" : {
+            "$elemMatch" : {
+                "price" : price
+            }
+        }
+    }
+
+    oregon_exp_orders = get_mongo_orders("covidclinic", "orders", mongo_query)
+
+    print("orders found by price: ", len(oregon_exp_orders.index))
 
 def record_mongo_orders():
     test_names = ['Expedited RT-PCR COVID-19 Test - 1-2 Day Result', '*COVID-19 Test - MedLab2020 Expedited PCR Test 1-2 Day Results']
@@ -130,7 +157,10 @@ def record_sql_orders():
         report_df.loc[idx, 'Patient First Name'] = row['First Name']
         report_df.loc[idx, 'Patient Last Name'] = row['Last Name']
         report_df.loc[idx, 'Test'] = row['Test Type']
-        report_df.loc[idx, 'Date of Result'] = row['Date of Result']
+        result_timestamp = row['Date of Result']
+        result_timestamp = pytz.utc.localize(result_timestamp)
+        report_df.loc[idx, 'Date of Result'] = result_timestamp.astimezone(timezone('US/Pacific'))
+
 
     get_collection_times(report_df)
 
@@ -145,8 +175,9 @@ def record_sql_orders():
 
 #---------------------------------------Main---------------------------------------#
 if __name__ == "__main__":
-    record_mongo_orders()
-    record_sql_orders()
+    # record_mongo_orders()
+    # record_sql_orders()
+    record_mongo_orders_by_price(150)
 
 
 

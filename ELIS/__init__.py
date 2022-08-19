@@ -3,13 +3,13 @@ import requests
 
 credentials_path = './creds/ELIS_API_creds.json'
 
-
+STAGE = 'test'
 
 class ELISAgent ():
 
     def __init__(self):
         f = open(credentials_path)
-        self.creds = json.load(f)
+        self.creds = json.load(f)[STAGE]
         self.login_path = '/token';
         self.create_order_path = '/order/create'
         f.close();

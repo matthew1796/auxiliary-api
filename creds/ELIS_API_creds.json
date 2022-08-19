@@ -1,5 +1,12 @@
 {
-  "base": "https://medlab.elisedge.com/elisapi/api",
-	"apiKey": "29314830",
-	"apiSecret": "MC44MjU5NjczMzkwODMyNDU0"
+  "production" : {
+    "base": "https://medlab.elisedge.com/elisapi/api",
+	  "apiKey": "29314830",
+	  "apiSecret": "MC44MjU5NjczMzkwODMyNDU0"
+  },
+  "test" : {
+    "base": "https://sandbox-1.elisedge.com/elisapi/api",
+	  "apiKey": "886088614",
+	  "apiSecret": "e3603d68a84e4dafb8db97d59b1e391a"
+  }
 }

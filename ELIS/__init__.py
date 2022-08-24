@@ -54,4 +54,4 @@ class ELISAgent ():
             orderID = 'E'+ orderID[6:]
             return specimenId, orderID
         except:
-            return 'Error', {'errorMessage' : response.text['errorMessage']}
+            return ('Error', {'errorMessage' : json.loads(response.text)['errorMessage']})

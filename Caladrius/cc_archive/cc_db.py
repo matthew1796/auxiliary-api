@@ -72,10 +72,10 @@ def get_order_notes_json(db_client: pymongo.MongoClient, mrns: str , force_updat
         raw_body_hash = None
         actually_pull = False
         if retrieved_note is None:
-            logger.debug(f'No notes data found for mrn=[{mrn}]. Attempting to retrieve and stash...')
+            #logger.debug(f'No notes data found for mrn=[{mrn}]. Attempting to retrieve and stash...')
             actually_pull = True
         elif force_update:
-            logger.debug(f'Force updating notes data for mrn=[{mrn}]. Attempting to retrieve and stash...')
+            #logger.debug(f'Force updating notes data for mrn=[{mrn}]. Attempting to retrieve and stash...')
             actually_pull = True
             raw_body_hash = retrieved_note['md5(raw_body)']
 

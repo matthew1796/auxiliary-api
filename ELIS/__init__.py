@@ -47,7 +47,7 @@ class ELISAgent ():
             return None
 
 
-
+        print('ELIS response: ', response.text)
         specimenId = post_body['specimenId']
         orderID = json.loads(response.text)['oid']
 

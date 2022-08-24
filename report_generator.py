@@ -9,8 +9,9 @@ import pymongo
 import os
 from pytz import timezone
 import pytz
+import re
 
-report_path = 'reports/oregon_late_expedited_orders(ALL).csv'
+report_path = 'reports/expedited_orders(ALL).csv'
 
 
 
@@ -33,6 +34,7 @@ def get_sql_orders(db, query):
     cursor.execute(query)
     df = pd.DataFrame(cursor)
     df = df.drop_duplicates(subset='MRN')
+    cursor.close()
     sql_agent.close()
     return df
 
@@ -43,17 +45,75 @@ def get_collection_times(df):
          collection_time = retrieved_order.__dict__['specimen'].__dict__['collection_datetime']
          df.loc[index, 'Date of Collection'] = collection_time.astimezone(timezone('US/Pacific'))
 
-def get_legacy_result_times(sql_db, df):
-    sql_agent = SQLAgent()
-    connection = sql_agent.create_connection(sql_db)
-    for idx, row in df.iterrows():
+
+
+def get_result_time(prod_connection, legacy_connection,  mrn, stage) -> datetime:
+    print('Fetching result time...')
+
+    if stage == 'prodution':
+        result_timestamp = get_prod_result_time(prod_connection, mrn)
+        if result_timestamp is not None:
+            return result_timestamp
+        else:
+            print('Result Timestamp for ' + mrn + ' not found in prod. Trying legacy results...')
+            result_timestamp = get_legacy_result_time(legacy_connection, mrn)
+            if result_timestamp is not None:
+                print('Found result_timestamp for ' + mrn + 'in legacy results.')
+                return result_timestamp
+            else:
+                print('No result timestamp found for ' + mrn)
+                return None
+    else:
+        result_timestamp = get_legacy_result_time(legacy_connection, mrn)
+        if result_timestamp is not None:
+            return result_timestamp
+        else:
+            print('Result Timestamp for ' + mrn + ' not found in legacy results. Trying prod results...')
+            result_timestamp = get_prod_result_time(prod_connection, mrn)
+            if result_timestamp is not None:
+                print('Found result_timestamp for ' + mrn + 'in prod results.')
+                return result_timestamp
+            else:
+                print('No result timestamp found for ' + mrn)
+                return None
+
+
+def get_prod_result_time(connection,  mrn) -> datetime:
+
+    try:
         cursor = connection.cursor(dictionary=True,buffered=True)
-        cursor.execute('SELECT * FROM resulting.legacy_results WHERE mrn = %s', (row['MRN'],))
-        order = cursor.fetchone()
+    except Exception as e:
+        print(e)
+        connection.reconnect()
+        cursor = connection.cursor(dictionary=True,buffered=True)
+
+    cursor.execute('CALL get_result_time(%s)', (mrn,))
+    order = cursor.fetchone()
+    cursor.close()
+    if order is not None:
+        result_timestamp = order['Date of Result']
+        result_timestamp = pytz.utc.localize(result_timestamp)
+
+        return result_timestamp.astimezone(timezone('US/Pacific'))
+    else:
+        return None
+
+def get_legacy_result_time(connection, mrn) -> datetime:
+    try:
+        cursor = connection.cursor(dictionary=True,buffered=True)
+    except Exception as e:
+        print(e)
+        connection.reconnect()
+        cursor = connection.cursor(dictionary=True,buffered=True)
+    cursor.execute('SELECT * from legacy_results WHERE mrn = %s', (mrn,))
+    order = cursor.fetchone()
+    cursor.close()
+    if order is not None:
         result_timestamp = order['result_timestamp']
         result_timestamp = pytz.utc.localize(result_timestamp)
-        df.loc[idx, 'Date of Result'] = result_timestamp.astimezone(timezone('US/Pacific'))
-    sql_agent.close()
+        return result_timestamp.astimezone(timezone('US/Pacific'))
+    else:
+        return None
 
 def contains_sunday(start : datetime, end: datetime):
     num_weeks, remainder = divmod( (end-start).days, 7)
@@ -67,7 +127,9 @@ def time_until_end_of_day(dt=None):
         dt = datetime.datetime.now()
     return ((24 - dt.hour - 1) * 60 * 60) + ((60 - dt.minute - 1) * 60) + (60 - dt.second)
 
-def is_late(start : datetime, end : datetime):
+def is_late(start : datetime, end : datetime) :
+
+    print(start, end)
 
     start = start.replace(tzinfo=None)
     end = end.replace(tzinfo=None)
@@ -88,8 +150,94 @@ def is_late(start : datetime, end : datetime):
     else:
         return False
 
+def record_by_json():
+    col_names = ["MRN", "Patient First Name", "Patient Last Name", "Test", "Date of Collection", "Date of Result"]
+    report_df = pd.DataFrame(columns=col_names)
 
-def record_mongo_orders_by_price(price: int):
+    sql_agent = SQLAgent()
+    prod_connection = sql_agent.create_connection('_sparrow_')
+    legacy_connection = sql_agent.create_connection('resulting')
+
+    with open('reports/oregon_expedited_orders(using meta data).json') as oregon_exp_orders_file:
+        oregon_exp_orders = json.load(oregon_exp_orders_file)
+        idx = 0
+        for row in oregon_exp_orders:
+            print(idx)
+            report_df.loc[idx, 'MRN'] = row['mrn']
+            report_df.loc[idx, 'Patient First Name'] = row['raw_body']['billing']['first_name']
+            report_df.loc[idx, 'Patient Last Name'] = row['raw_body']['billing']['last_name']
+            for test in row['raw_body']['line_items']:
+                if 'Expedited' in test['name']:
+                    report_df.loc[idx, 'Test'] = test['name']
+                    break
+            report_df.loc[idx, 'Date of Result'] = get_result_time(prod_connection, legacy_connection, row['mrn'], row['stage'])
+            idx += 1
+
+
+    get_collection_times(report_df)
+
+    for idx, order in report_df.iterrows():
+            try:
+                if is_late(order['Date of Collection'], order['Date of Result']) == False:
+                    report_df.drop(idx, inplace=True)
+            except Exception as e:
+                print(e)
+                print('Failed on ', order['MRN'])
+
+
+    prod_connection.close()
+    legacy_connection.close()
+    report_df.to_csv(report_path, mode='a', header=not os.path.exists(report_path))
+
+
+
+def record_mongo_orders_by_meta_data(key):
+
+    sql_agent = SQLAgent()
+    sql_connection = sql_agent.create_connection('_sparrow_')
+
+    mongo_query = {
+        "raw_body.billing.state": "OR",
+        "raw_body.meta_data" : {
+            "$elemMatch" : {
+                "key" : key
+            }
+        }
+    }
+    oregon_exp_orders = get_mongo_orders("covidclinic", "orders", mongo_query)
+
+    col_names = ["MRN", "Patient First Name", "Patient Last Name", "Test", "Date of Collection", "Date of Result"]
+    report_df = pd.DataFrame(columns=col_names)
+
+    for idx, row in oregon_exp_orders.iterrows():
+        report_df.loc[idx, 'MRN'] = row['mrn']
+        report_df.loc[idx, 'Patient First Name'] = row['raw_body']['billing']['first_name']
+        report_df.loc[idx, 'Patient Last Name'] = row['raw_body']['billing']['last_name']
+        if row['raw_body']['line_items'].str.find('Expedited'):
+            if 'Expedited' in test['name']:
+                report_df.loc[idx, 'Test'] = test
+                break
+        report_df.loc[idx, 'Date of Result'] = get_result_time(sql_connection, row['mrn'], row['stage'])
+
+    get_collection_times(report_df)
+
+
+
+    for idx, order in report_df.iterrows():
+        try:
+            if is_late(order['Date of Collection'], order['Date of Result']) == False:
+                report_df.drop(idx, inplace=True)
+        except Exception as e:
+            print(e)
+            print('Failed on ', order['MRN'])
+
+
+    print(test, "Total: ", len(report_df.index) )
+    report_df.to_csv(report_path, mode='a', header=not os.path.exists(report_path))
+
+    sql_agent.close()
+
+def record_mongo_orders_by_price(price):
     mongo_query = {
         "raw_body.billing.state": "OR",
         "raw_body.line_items" : {
@@ -109,16 +257,53 @@ def record_mongo_orders_by_price(price: int):
 
     oregon_exp_orders = get_mongo_orders("covidclinic", "orders", mongo_query)
 
-    print("orders found by price: ", len(oregon_exp_orders.index))
+    col_names = ["MRN", "Patient First Name", "Patient Last Name", "Test", "Date of Collection", "Date of Result"]
+    report_df = pd.DataFrame(columns=col_names)
+
+    sparrow_sql_agent = SQLAgent()
+    resulting_sql_agent = SQLAgent()
+
+    sparrow_conn = sparrow_sql_agent.create_connection('_sparrow_')
+    resulting_conn = resulting_sql_agent.create_connection('resulting')
+
+    for idx, row in oregon_exp_orders.iterrows():
+        report_df.loc[idx, 'MRN'] = row['mrn']
+        report_df.loc[idx, 'Patient First Name'] = row['raw_body']['billing']['first_name']
+        report_df.loc[idx, 'Patient Last Name'] = row['raw_body']['billing']['last_name']
+        report_df.loc[idx, 'Date of Result'] = get_result_time(sparrow_conn, resulting_conn, row['mrn'], row['stage'])
+        for test in row['raw_body']['line_items']:
+            if test['price'] == 150:
+                report_df.loc[idx, 'Test'] = test['name']
+                break
+
+    get_collection_times(report_df)
+
+    for idx, order in report_df.iterrows():
+            if is_late(order['Date of Collection'], order['Date of Result']) == False:
+                report_df.drop(idx, inplace=True)
+
+    report_df.to_csv(report_path, mode='a', header=not os.path.exists(report_path))
+    sparrow_sql_agent.close()
+    resulting_sql_agent.close()
+
+
 
 def record_mongo_orders():
-    test_names = ['Expedited RT-PCR COVID-19 Test - 1-2 Day Result', '*COVID-19 Test - MedLab2020 Expedited PCR Test 1-2 Day Results']
+    test_names = ['Expedited RT-PCR COVID-19 Test - 1-2 Day Result', '*COVID-19 Test - MedLab2020 Expedited PCR Test 1-2 Day Results',
+                  'ExpeditedRT-PCRCOVID-19Test-1-2DayResult', '*Expedited RT-PCR COVID-19 Test - 1-2 Day Result', 'Expedited RT-PCR COVID-19 Test',
+                  '$0 No Cost to Patient 2-3 Day Expedited RT-PCR Test', '*A. Expedited RT-PCR Test', '*A. Expedited RT-PCR Test (Backup)',
+                  '*A. Expedited RT-PCR Test (No Cost To Patient)' ]
+
+
+    sql_agent = SQLAgent()
+    prod_connection = sql_agent.create_connection('_sparrow_')
+    legacy_connection = sql_agent.create_connection('resulting')
 
     for test in test_names:
 
 
         mongo_query = {
-            "raw_body.billing.state": "OR",
+            #"raw_body.billing.state": "OR",
             "raw_body.line_items" : {
                 "$elemMatch" : {
                     "name" : test
@@ -136,16 +321,33 @@ def record_mongo_orders():
             report_df.loc[idx, 'Patient First Name'] = row['raw_body']['billing']['first_name']
             report_df.loc[idx, 'Patient Last Name'] = row['raw_body']['billing']['last_name']
             report_df.loc[idx, 'Test'] = test
+            report_df.loc[idx, 'Date of Result'] = get_result_time(prod_connection, legacy_connection, row['mrn'], row['stage'])
 
         get_collection_times(report_df)
-        get_legacy_result_times('resulting', report_df)
 
 
-        for idx, order in report_df.iterrows():
-                if is_late(order['Date of Collection'], order['Date of Result']) == False:
-                    report_df.drop(idx, inplace=True)
 
+        # for idx, order in report_df.iterrows():
+        #     try:
+        #         if is_late(order['Date of Collection'], order['Date of Result']) == False:
+        #             report_df.drop(idx, inplace=True)
+        #     except Exception as e:
+        #         print(e)
+        #         print('Failed on ', order['MRN'])
+
+
+
+
+        print(test, "Total: ", len(report_df.index) )
         report_df.to_csv(report_path, mode='a', header=not os.path.exists(report_path))
+
+    prod_connection.close()
+    legacy_connection.close()
+
+
+
+
+
 
 def record_sql_orders():
     oregon_exp_orders = get_sql_orders('_sparrow_', 'CALL get_oregon_expedited_orders()')
@@ -170,14 +372,16 @@ def record_sql_orders():
             if is_late(order['Date of Collection'], order['Date of Result']) == False:
                 report_df.drop(idx, inplace=True)
 
+    print('SQL Total: ', len(report_df.index))
+
     report_df.to_csv(report_path, mode='a', header=not os.path.exists(report_path))
 
 
 #---------------------------------------Main---------------------------------------#
 if __name__ == "__main__":
-    # record_mongo_orders()
+    # record_by_json()
     # record_sql_orders()
-    record_mongo_orders_by_price(150)
+    record_mongo_orders()
 
 
 

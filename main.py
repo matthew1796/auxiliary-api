@@ -73,7 +73,7 @@ async def generate_test_mrns(request : TestMRNsRequest):
                 print("Generating new token and trying again...")
                 token = elis_agent.login()
 
-            else if orderInfo[0] == 'Error':
+            elif orderInfo[0] == 'Error':
                 print('Error:', orderInfo[1])
                 return orderInfo
 

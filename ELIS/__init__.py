@@ -48,10 +48,10 @@ class ELISAgent ():
 
 
         print('ELIS response: ', response.text)
-        specimenId = post_body['specimenId']
-        orderID = json.loads(response.text)['oid']
-
-        # specimenId = 'XX-987656924'
-        # orderID = 'DEFCV03027527'
-        orderID = 'E'+ orderID[6:]
-        return specimenId, orderID
+        try:
+            specimenId = post_body['specimenId']
+            orderID = json.loads(response.text)['oid']
+            orderID = 'E'+ orderID[6:]
+            return specimenId, orderID
+        except:
+            return 'Error', response.text['errorMessage']

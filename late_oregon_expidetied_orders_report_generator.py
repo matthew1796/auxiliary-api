@@ -11,20 +11,18 @@ from pytz import timezone
 import pytz
 import re
 
-report_path = 'reports/expedited_orders(ALL).csv'
+report_path = 'reports/expedited_orders(prod).csv'
 
 
 
 #---------------------------------------Functions---------------------------------------#
 
-def get_mongo_orders(db, collection, query, projection=None):
-    mongo_agent = MongoAgent()
-    mongo_client = mongo_agent.create_connection()
+def get_mongo_orders(mongo_client, db, collection, query, projection=None):
+
     cc_orders = mongo_client[db][collection]
     mongo_cursor = cc_orders.find(query, projection)
-    df = pd.DataFrame(list(mongo_cursor))
-    mongo_agent.close()
-    return df
+    #mongo_agent.close()
+    return mongo_cursor
 
 
 def get_sql_orders(db, query):
@@ -42,8 +40,11 @@ def get_sql_orders(db, query):
 def get_collection_times(df):
      for index, row in df.iterrows():
          retrieved_order = caladrius.get_cc_order(row['MRN'])
-         collection_time = retrieved_order.__dict__['specimen'].__dict__['collection_datetime']
-         df.loc[index, 'Date of Collection'] = collection_time.astimezone(timezone('US/Pacific'))
+         try:
+             collection_time = retrieved_order.__dict__['specimen'].__dict__['collection_datetime']
+             df.loc[index, 'Date of Collection'] = collection_time.astimezone(timezone('US/Pacific'))
+         except:
+            print('failed to get collection time for ', row['MRN'])
 
 
 
@@ -87,7 +88,13 @@ def get_prod_result_time(connection,  mrn) -> datetime:
         connection.reconnect()
         cursor = connection.cursor(dictionary=True,buffered=True)
 
-    cursor.execute('CALL get_result_time(%s)', (mrn,))
+    query_string = 'SELECT `rx`.`mrn` as `MRN` , \
+                    `rn`.`result_timestamp` as `Date of Result` \
+                     FROM resulting.results `rx` \
+                     LEFT JOIN resulting.runs `rn` ON `rx`.`run_idx` = `rn`.`idx`\
+                     WHERE `rx`.`mrn` = %s'
+
+    cursor.execute( query_string, (mrn,))
     order = cursor.fetchone()
     cursor.close()
     if order is not None:
@@ -191,51 +198,46 @@ def record_by_json():
 
 
 
-def record_mongo_orders_by_meta_data(key):
+def record_mongo_orders_prod(test, prod_connection, legacy_connection, mongo_client):
 
-    sql_agent = SQLAgent()
-    sql_connection = sql_agent.create_connection('_sparrow_')
+        mongo_query = {'stage': 'production', 'raw_body.patient_information.patients_state' : 'OR', 'raw_body.line_items': {'$elemMatch': { 'name': test}}}
 
-    mongo_query = {
-        "raw_body.billing.state": "OR",
-        "raw_body.meta_data" : {
-            "$elemMatch" : {
-                "key" : key
-            }
-        }
-    }
-    oregon_exp_orders = get_mongo_orders("covidclinic", "orders", mongo_query)
+        oregon_exp_orders = get_mongo_orders(mongo_client, "covidclinic", "orders", mongo_query)
 
-    col_names = ["MRN", "Patient First Name", "Patient Last Name", "Test", "Date of Collection", "Date of Result"]
-    report_df = pd.DataFrame(columns=col_names)
+        col_names = ["MRN", "Patient First Name", "Patient Last Name", "Test", "Date of Collection", "Date of Result"]
+        report_df = pd.DataFrame(columns=col_names)
 
-    for idx, row in oregon_exp_orders.iterrows():
-        report_df.loc[idx, 'MRN'] = row['mrn']
-        report_df.loc[idx, 'Patient First Name'] = row['raw_body']['billing']['first_name']
-        report_df.loc[idx, 'Patient Last Name'] = row['raw_body']['billing']['last_name']
-        if row['raw_body']['line_items'].str.find('Expedited'):
-            if 'Expedited' in test['name']:
-                report_df.loc[idx, 'Test'] = test
-                break
-        report_df.loc[idx, 'Date of Result'] = get_result_time(sql_connection, row['mrn'], row['stage'])
+        idx = 0
+        for row in oregon_exp_orders:
+            report_df.loc[idx, 'MRN'] = row['mrn']
+            report_df.loc[idx, 'Patient First Name'] = row['raw_body']['patient_information']['patient_first_name']
+            report_df.loc[idx, 'Patient Last Name'] = row['raw_body']['patient_information']['patient_last_name']
+            report_df.loc[idx, 'Test'] = test
+            report_df.loc[idx, 'Date of Result'] = get_result_time(prod_connection, legacy_connection, row['mrn'], row['stage'])
+            print(report_df.loc[[idx]])
+            idx += 1
 
-    get_collection_times(report_df)
+        get_collection_times(report_df)
 
 
 
-    for idx, order in report_df.iterrows():
-        try:
-            if is_late(order['Date of Collection'], order['Date of Result']) == False:
-                report_df.drop(idx, inplace=True)
-        except Exception as e:
-            print(e)
-            print('Failed on ', order['MRN'])
+        for idx, order in report_df.iterrows():
+            try:
+                if is_late(order['Date of Collection'], order['Date of Result']) == False:
+                    report_df.drop(idx, inplace=True)
+            except Exception as e:
+                print(e)
+                print('Failed on ', order['MRN'])
 
 
-    print(test, "Total: ", len(report_df.index) )
-    report_df.to_csv(report_path, mode='a', header=not os.path.exists(report_path))
 
-    sql_agent.close()
+
+        print(test, "Total: ", len(report_df.index) )
+        report_df.to_csv(report_path, mode='a', header=not os.path.exists(report_path))
+
+
+
+
 
 def record_mongo_orders_by_price(price):
     mongo_query = {
@@ -288,22 +290,11 @@ def record_mongo_orders_by_price(price):
 
 
 
-def record_mongo_orders():
-    test_names = ['Expedited RT-PCR COVID-19 Test - 1-2 Day Result', '*COVID-19 Test - MedLab2020 Expedited PCR Test 1-2 Day Results',
-                  'ExpeditedRT-PCRCOVID-19Test-1-2DayResult', '*Expedited RT-PCR COVID-19 Test - 1-2 Day Result', 'Expedited RT-PCR COVID-19 Test',
-                  '$0 No Cost to Patient 2-3 Day Expedited RT-PCR Test', '*A. Expedited RT-PCR Test', '*A. Expedited RT-PCR Test (Backup)',
-                  '*A. Expedited RT-PCR Test (No Cost To Patient)' ]
-
-
-    sql_agent = SQLAgent()
-    prod_connection = sql_agent.create_connection('_sparrow_')
-    legacy_connection = sql_agent.create_connection('resulting')
-
-    for test in test_names:
+def record_mongo_orders_archive(test, prod_connection, legacy_connection, mongo_client):
 
 
         mongo_query = {
-            #"raw_body.billing.state": "OR",
+            "raw_body.billing.state": "OR",
             "raw_body.line_items" : {
                 "$elemMatch" : {
                     "name" : test
@@ -316,24 +307,27 @@ def record_mongo_orders():
         col_names = ["MRN", "Patient First Name", "Patient Last Name", "Test", "Date of Collection", "Date of Result"]
         report_df = pd.DataFrame(columns=col_names)
 
-        for idx, row in oregon_exp_orders.iterrows():
+        idx = 0
+        for row in oregon_exp_orders:
             report_df.loc[idx, 'MRN'] = row['mrn']
             report_df.loc[idx, 'Patient First Name'] = row['raw_body']['billing']['first_name']
             report_df.loc[idx, 'Patient Last Name'] = row['raw_body']['billing']['last_name']
             report_df.loc[idx, 'Test'] = test
             report_df.loc[idx, 'Date of Result'] = get_result_time(prod_connection, legacy_connection, row['mrn'], row['stage'])
+            print(idx, report_df.loc[[i]])
+            idx += 1
 
         get_collection_times(report_df)
 
 
 
-        # for idx, order in report_df.iterrows():
-        #     try:
-        #         if is_late(order['Date of Collection'], order['Date of Result']) == False:
-        #             report_df.drop(idx, inplace=True)
-        #     except Exception as e:
-        #         print(e)
-        #         print('Failed on ', order['MRN'])
+        for idx, order in report_df.iterrows():
+            try:
+                if is_late(order['Date of Collection'], order['Date of Result']) == False:
+                    report_df.drop(idx, inplace=True)
+            except Exception as e:
+                print(e)
+                print('Failed on ', order['MRN'])
 
 
 
@@ -341,11 +335,27 @@ def record_mongo_orders():
         print(test, "Total: ", len(report_df.index) )
         report_df.to_csv(report_path, mode='a', header=not os.path.exists(report_path))
 
+
+
+
+
+def record_all_mongo_orders(test_names : list):
+    sql_agent = SQLAgent()
+    prod_connection = sql_agent.create_connection('_sparrow_')
+    legacy_connection = sql_agent.create_connection('resulting')
+
+    mongo_agent = MongoAgent()
+    mongo_client = mongo_agent.create_connection()
+
+    for test in test_names:
+        record_mongo_orders_archive(test, prod_connection, legacy_connection, mongo_client)
+        record_mongo_orders_prod(test, prod_connection, legacy_connection, mongo_client)
+
+
+
     prod_connection.close()
     legacy_connection.close()
-
-
-
+    mongo_client.close()
 
 
 
@@ -379,9 +389,12 @@ def record_sql_orders():
 
 #---------------------------------------Main---------------------------------------#
 if __name__ == "__main__":
-    # record_by_json()
-    # record_sql_orders()
-    record_mongo_orders()
+    test_names = ['Expedited RT-PCR COVID-19 Test - 1-2 Day Result', '*COVID-19 Test - MedLab2020 Expedited PCR Test 1-2 Day Results',
+                  'ExpeditedRT-PCRCOVID-19Test-1-2DayResult', '*Expedited RT-PCR COVID-19 Test - 1-2 Day Result', 'Expedited RT-PCR COVID-19 Test',
+                  '$0 No Cost to Patient 2-3 Day Expedited RT-PCR Test', '*A. Expedited RT-PCR Test', '*A. Expedited RT-PCR Test (Backup)',
+                  '*A. Expedited RT-PCR Test (No Cost To Patient)' ]
+
+    record_all_mongo_orders(test_names)
 
 
 

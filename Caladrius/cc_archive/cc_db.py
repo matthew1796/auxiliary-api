@@ -391,6 +391,6 @@ if __name__ == '__main__':
     # with MongoClient('master') as my_db_client:
     #     x = get_order_json(my_db_client, ['00-5076626', '00-5075157', '00-5076808'])
     # my_orders = get_cc_order(['00-5076626', '00-5075157', '00-5076808'], force_update=True)
-    my_orders = get_cc_order('02-1114728', parse('2021-11-14T17:07:05'), force_update=True)
+    my_orders = get_cc_order('00-2837658', force_update=True)
     print(my_orders)
     print()

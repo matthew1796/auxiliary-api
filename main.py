@@ -90,4 +90,4 @@ async def generate_test_mrns(request : TestMRNsRequest):
             csv_out = csv.writer(out)
             csv_out.writerow(orderInfo)
 
-    return FileResponse(output_file)
+    return FileResponse(output_file), output_file

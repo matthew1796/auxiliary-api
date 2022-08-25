@@ -4,6 +4,7 @@ import json
 from csv import writer
 from random import randint
 from ELIS import ELISAgent
+import datetime
 
 
 
@@ -25,7 +26,7 @@ def random_with_N_digits(n):
 
 def generate_json_obj(token, panelID, row):
 
-    specimenId = 'XX-98765' + str(random_with_N_digits(4))
+    specimenId = 'XX-' + datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')
     post_body = {
         "token" : token,
         "patient": {
@@ -62,3 +63,8 @@ def generate_json_obj(token, panelID, row):
 
 
     return post_body
+
+
+if __name__ == '__main__':
+    specimenId = 'XX-' + datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')
+    print(specimenId)

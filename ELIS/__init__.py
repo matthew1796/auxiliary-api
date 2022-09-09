@@ -123,7 +123,7 @@ class ELISAgent ():
         try:
             specimenId = payload['specimenId']
             orderID = json.loads(response.text)['id']
-            orderID = 'E' + orderID.split('0', 1)[1]
+            orderID = 'E' + orderID
             return specimenId, orderID
         except:
             return ('Error', {'errorMessage' : json.loads(response.text)['errorMessage']})

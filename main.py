@@ -3,6 +3,10 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from ELIS import ELISAgent
 from Mockaroo import MockarooAgent
+import Caladrius.billing.automate_billing as automate_billing
+from Caladrius.billing import compute_billing_range
+from Caladrius.billing.render_elis_billing_report import generate_elis_report_with_specID
+
 from fastapi.responses import StreamingResponse
 from fastapi.responses import FileResponse
 import io
@@ -10,9 +14,14 @@ import generate_fake_mrns as mrn_generator
 import csv
 from datetime import datetime
 import pandas as pd
+import json
+import driven_care_g2023_billing as G2023_report_generator
 
 DATASHEET = './fake_data/fake_mrn_data.csv'
-MAX_ELIS_ATTEMPS = 5
+
+#Classes to capture json requests
+class BillingRequest(BaseModel):
+    billing_ordinal : int
 
 class TestMRNsRequest(BaseModel):
     num_mrns : int
@@ -27,7 +36,40 @@ app = FastAPI()
 async def root():
     return {"message" : "Hello World"}
 
-# #Route for generating test mrns in ELIS
+@app.get('/test')
+async def test():
+    e_agent = ELISAgent()
+    response = e_agent.get_order_details_by_id(2540170)
+
+    return json.loads(response.content)
+
+
+@app.post('/compute_billing_range')
+async def get_billing_range(request : BillingRequest):
+    billing_ordinal = request.billing_ordinal
+
+    date_range = compute_billing_range(billing_ordinal)
+
+    response = {
+        'start_date' : date_range[0],
+        'end_date' : date_range[1]
+    }
+    return response
+
+
+@app.post("/generate_G2023_only_reports")
+async def generate_G2023_only_reports(request: BillingRequest):
+
+    billing_ordinal = request.billing_ordinal
+    generate_elis_report_with_specID(billing_ordinal)
+    G2023_report_generator.generate_G2023_only_reports(billing_ordinal)
+
+@app.post("/generate_billing_reports")
+async def generate_billing_reports(request: BillingRequest):
+    billing_ordinal = request.billing_ordinal
+    automate_billing.generate_billing_reports(billing_ordinal)
+
+#Route for generating test mrns in ELIS
 @app.post("/generate_test_mrns")
 async def generate_test_mrns(request : TestMRNsRequest):
 
@@ -43,9 +85,9 @@ async def generate_test_mrns(request : TestMRNsRequest):
     elis_agent = ELISAgent()
 
     #Generate an ELIS token for making api calls
-    token = elis_agent.login();
+    elis_agent.login();
 
-    #Create a mockaroo agent for hanling Mockaroo api calls
+    #Create a mockaroo agent for handling Mockaroo api calls
     mockaroo_agent = MockarooAgent()
 
     #Generate random fake patient data
@@ -55,35 +97,17 @@ async def generate_test_mrns(request : TestMRNsRequest):
     fake_data = pd.read_csv(DATASHEET)
     for idx, row in fake_data.iterrows():
 
-        #Loop that handles elis api calls and re-attempts them up to MAX_ELIS_ATTEMPS
-        #if they fail
-        success = False
-        attempts = 0
-        orderInfo = None
-        while attempts <  MAX_ELIS_ATTEMPS:
 
-            #Make the ELIS api call and store the response
-            post_body = mrn_generator.generate_json_obj(token, panelID, row)
-            orderInfo = elis_agent.create_order(post_body)
+        #Make the ELIS api call and store the response
+        post_body = mrn_generator.generate_json_obj( panelID, row)
+        orderInfo = elis_agent.create_order(post_body)
 
-            #Token sometimes expires before generating all test mrns, if so,
-            #get a new one and try again
-            if orderInfo == None:
-                attempts += 1
-                print("Generating new token and trying again...")
-                token = elis_agent.login()
 
-            elif orderInfo[0] == 'Error':
-                print('Error:', orderInfo[1])
-                return orderInfo
 
-            #If the api call was successfull, break out of the loop
-            else:
-                success = True
-                break
-        #If MAX_ELIS_ATTEMPS were made and was not successfull, then log this mrn as an error
-        if not success:
-            orderInfo = ('Error', 'Error')
+        if orderInfo[0] == 'Error':
+            print('Error:', orderInfo[1])
+            return orderInfo
+
 
         #write the orderInfo(mrn and orderID) to the next row in the output csv
         with open(output_file, 'a+') as out:

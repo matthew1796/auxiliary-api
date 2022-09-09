@@ -24,11 +24,10 @@ def random_with_N_digits(n):
 
 
 
-def generate_json_obj(token, panelID, row):
+def generate_json_obj(panelID, row):
 
     specimenId = 'XX-' + datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')
     post_body = {
-        "token" : token,
         "patient": {
 		       "firstName": row['first_name'],
 		       "lastName": row['last_name'],

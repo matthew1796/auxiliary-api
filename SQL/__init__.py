@@ -11,21 +11,19 @@ class SQLAgent():
         f.close()
 
     def create_connection(self, db):
-        self.connection = None
+
         try:
-            self.connection = mysql.connector.connect(
+            connection = mysql.connector.connect(
                 host = self.creds["host"],
                 user = self.creds["user"],
                 passwd = self.creds["password"],
                 database = db
             )
             print("Connection to " + self.creds["host"] + " successfull.")
-            return self.connection
+            return connection
 
         except Error as e:
             print("Error: " + e)
 
 
-    def close(self):
-        print("Closing " + self.creds["host"] + " connection")
-        self.connection.close()
+    

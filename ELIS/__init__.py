@@ -7,7 +7,7 @@ import time
 from urllib.error import HTTPError
 credentials_path = './creds/ELIS_API_creds.json'
 
-STAGE = 'production'
+STAGE = 'test'
 
 class ELISAgent ():
 
@@ -123,7 +123,7 @@ class ELISAgent ():
         try:
             specimenId = payload['specimenId']
             orderID = json.loads(response.text)['id']
-            orderID = 'E' + orderID
+            orderID = 'E' + str(orderID)
             return specimenId, orderID
         except:
             return ('Error', {'errorMessage' : json.loads(response.text)['errorMessage']})
